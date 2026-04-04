@@ -1,0 +1,71 @@
+/* 浅色模式（默认） */
+:root {
+  /* 背景透明度 */
+  --bg-opacity: 0.92;
+
+  /* 背景色 - 使用更亮的颜色配合透明度 */
+  --bg-primary: rgba(255, 255, 255, var(--bg-opacity));
+  --bg-secondary: rgba(249, 250, 252, var(--bg-opacity));
+  --bg-tertiary: rgba(245, 247, 250, var(--bg-opacity));
+  --bg-hover: rgba(240, 242, 245, var(--bg-opacity));
+  --bg-active: rgba(236, 245, 255, var(--bg-opacity));
+
+  /* 文字色 */
+  --text-primary: #303133;
+  --text-secondary: #606266;
+  --text-tertiary: #909399;
+  --text-placeholder: #a8abb2;
+
+  /* 边框色 */
+  --border-color: #e4e7ed;
+  --border-light: #ebeef5;
+
+  /* 主题色 */
+  --primary-color: #409eff;
+  --primary-light: #ecf5ff;
+  --primary-dark: #337ecc;
+
+  /* 阴影 */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* 深色模式 */
+html.dark {
+  /* 背景色 */
+  --bg-primary: rgba(26, 26, 26, var(--bg-opacity));
+  --bg-secondary: rgba(36, 36, 36, var(--bg-opacity));
+  --bg-tertiary: rgba(45, 45, 45, var(--bg-opacity));
+  --bg-hover: rgba(42, 42, 42, calc(var(--bg-opacity) + 0.05));
+  --bg-active: rgba(30, 58, 95, var(--bg-opacity));
+
+  /* 文字色 */
+  --text-primary: #e0e0e0;
+  --text-secondary: #b0b0b0;
+  --text-tertiary: #808080;
+  --text-placeholder: #606060;
+
+  /* 边框色 */
+  --border-color: #3a3a3a;
+  --border-light: #2d2d2d;
+
+  /* 主题色 */
+  --primary-color: #5b8cff;
+  --primary-light: #1e3a5f;
+  --primary-dark: #4a7de4;
+
+  /* 阴影 */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* 全局样式 */
+body {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
