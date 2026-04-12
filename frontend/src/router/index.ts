@@ -72,12 +72,12 @@ const routes: RouteRecordRaw[] = [
       //   component: () => import("../views/bot/pages/DataStatsPage.vue"),
       //   meta: { title: "数据统计" },
       // },
-      // {
-      //   path: "platform-logs",
-      //   name: "BotPlatformLogs",
-      //   component: () => import("../views/bot/pages/PlatformLogsPage.vue"),
-      //   meta: { title: "平台日志" },
-      // },
+      {
+        path: "platform-logs",
+        name: "BotPlatformLogs",
+        component: () => import("../views/bot/pages/PlatformLogs.vue"),
+        meta: { title: "平台日志" },
+      },
       // {
       //   path: "tracking",
       //   name: "BotTracking",
@@ -126,6 +126,18 @@ const routes: RouteRecordRaw[] = [
         name: "BotMemory",
         component: () => import("../views/bot/pages/MemoryConfigPage.vue"),
         meta: { title: "记忆配置" },
+      },
+      {
+        path: "settings",
+        name: "BotSettings",
+        component: () => import("../views/bot/pages/SettingsPage.vue"),
+        meta: { title: "系统设置" },
+      },
+      {
+        path: "changelog",
+        name: "BotChangelog",
+        component: () => import("../views/bot/pages/ChangelogPage.vue"),
+        meta: { title: "更新日志" },
       },
     ],
   },

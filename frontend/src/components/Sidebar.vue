@@ -47,6 +47,13 @@ const openExternalUrl = (url: string) => {
   window.open(url, "_blank");
 };
 
+// 处理子菜单点击
+const handleSubmenuClick = (child: any) => {
+  if (child.routeName) {
+    navigateTo(child.routeName);
+  }
+};
+
 const menuItems = [
   {
     icon: "welcome",
@@ -172,16 +179,19 @@ const bottomItems = [
   {
     icon: "settings",
     label: computed(() => $t.value("settings.settings") || "设置"),
+    routeName: "BotSettings",
   },
   {
     icon: "changelog",
     label: computed(() => $t.value("sidebar.changelog") || "更新日志"),
+    routeName: "BotChangelog",
   },
   {
     icon: "docs",
     label: computed(() => $t.value("sidebar.docs") || "官方文档"),
+    url: "https://haxatom.com/docs",
   },
-  { icon: "faq", label: "FAQ" },
+  { icon: "faq", label: "FAQ", url: "https://haxatom.com/faq" },
   {
     icon: "github",
     label: "GitHub",
@@ -304,7 +314,7 @@ const bottomItems = [
                 :key="childIndex"
                 class="submenu-item"
                 :class="{ active: isActive(child.routeName) }"
-                @click.stop="child.routeName && navigateTo(child.routeName)"
+                @click.stop="handleSubmenuClick(child)"
               >
                 <svg
                   class="submenu-icon"
@@ -386,7 +396,13 @@ const bottomItems = [
         v-for="(item, index) in bottomItems"
         :key="index"
         class="bottom-item"
-        @click="item.url ? openExternalUrl(item.url) : undefined"
+        @click="
+          item.url
+            ? openExternalUrl(item.url)
+            : item.routeName
+              ? navigateTo(item.routeName)
+              : undefined
+        "
       >
         <svg class="bottom-icon" viewBox="0 0 24 24" fill="currentColor">
           <!-- 设置 -->
