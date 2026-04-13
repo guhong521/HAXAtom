@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import * as echarts from "echarts";
 import { t } from "../../../locales";
 
 const $t = computed(() => t);
@@ -32,6 +33,10 @@ const autoRefresh = ref(5000);
 let refreshTimer: any = null;
 let uptimeTimer: any = null;
 
+// ECharts 实例
+let cpuChart: echarts.ECharts | null = null;
+let memoryChart: echarts.ECharts | null = null;
+
 // 运行时长格式化
 const formatUptime = (seconds: number) => {
   const days = Math.floor(seconds / 86400);
@@ -59,6 +64,139 @@ const formatBytes = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
+// 初始化 ECharts
+const initCharts = () => {
+  const cpuChartEl = document.getElementById("cpu-chart");
+  const memoryChartEl = document.getElementById("memory-chart");
+
+  if (cpuChartEl) {
+    cpuChart = echarts.init(cpuChartEl);
+    // 初始化配置
+    cpuChart.setOption({
+      grid: {
+        top: 5,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        containLabel: false,
+      },
+      xAxis: {
+        type: "category",
+        boundaryGap: false,
+        show: false,
+      },
+      yAxis: {
+        type: "value",
+        min: 0,
+        max: 100,
+        show: false,
+      },
+      series: [
+        {
+          type: "line",
+          smooth: 0.4,
+          symbol: "none",
+          lineStyle: {
+            color: "#667eea",
+            width: 2.5,
+            cap: "round",
+          },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              {
+                offset: 0,
+                color: "rgba(102, 126, 234, 0.6)",
+              },
+              {
+                offset: 1,
+                color: "rgba(102, 126, 234, 0.1)",
+              },
+            ]),
+          },
+        },
+      ],
+    });
+  }
+
+  if (memoryChartEl) {
+    memoryChart = echarts.init(memoryChartEl);
+    // 初始化配置
+    memoryChart.setOption({
+      grid: {
+        top: 5,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        containLabel: false,
+      },
+      xAxis: {
+        type: "category",
+        boundaryGap: false,
+        show: false,
+      },
+      yAxis: {
+        type: "value",
+        min: 0,
+        max: 100,
+        show: false,
+      },
+      series: [
+        {
+          type: "line",
+          smooth: 0.4,
+          symbol: "none",
+          lineStyle: {
+            color: "#f5576c",
+            width: 2.5,
+            cap: "round",
+          },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              {
+                offset: 0,
+                color: "rgba(245, 87, 108, 0.6)",
+              },
+              {
+                offset: 1,
+                color: "rgba(245, 87, 108, 0.1)",
+              },
+            ]),
+          },
+        },
+      ],
+    });
+  }
+};
+
+// 更新图表
+const updateCharts = () => {
+  if (cpuChart && cpuHistory.value.length > 0) {
+    cpuChart.setOption({
+      xAxis: {
+        data: cpuHistory.value,
+      },
+      series: [
+        {
+          data: cpuHistory.value,
+        },
+      ],
+    });
+  }
+
+  if (memoryChart && memoryHistory.value.length > 0) {
+    memoryChart.setOption({
+      xAxis: {
+        data: memoryHistory.value,
+      },
+      series: [
+        {
+          data: memoryHistory.value,
+        },
+      ],
+    });
+  }
+};
+
 // 获取系统信息
 const fetchSystemInfo = async () => {
   loading.value = true;
@@ -77,6 +215,9 @@ const fetchSystemInfo = async () => {
         cpuHistory.value.shift();
         memoryHistory.value.shift();
       }
+
+      // 更新图表
+      updateCharts();
     }
   } catch (error) {
     console.error("获取系统信息失败:", error);
@@ -110,9 +251,16 @@ const setupAutoRefresh = () => {
 
 // 生命周期
 onMounted(() => {
+  initCharts();
   fetchSystemInfo();
   setupAutoRefresh();
   startUptimeTimer();
+
+  // 窗口大小改变时重新渲染图表
+  window.addEventListener("resize", () => {
+    cpuChart?.resize();
+    memoryChart?.resize();
+  });
 });
 
 onUnmounted(() => {
@@ -122,6 +270,8 @@ onUnmounted(() => {
   if (uptimeTimer) {
     clearInterval(uptimeTimer);
   }
+  cpuChart?.dispose();
+  memoryChart?.dispose();
 });
 </script>
 
@@ -346,15 +496,7 @@ onUnmounted(() => {
                   }}%</span
                 >
               </div>
-              <div class="mini-chart">
-                <div
-                  v-for="(value, index) in cpuHistory"
-                  :key="index"
-                  class="chart-bar"
-                  :style="{ height: `${value}%` }"
-                  :title="`${value.toFixed(1)}%`"
-                ></div>
-              </div>
+              <div class="mini-chart" id="cpu-chart"></div>
             </div>
             <div class="chart-item">
               <div class="chart-label">
@@ -368,15 +510,7 @@ onUnmounted(() => {
                   }}%</span
                 >
               </div>
-              <div class="mini-chart">
-                <div
-                  v-for="(value, index) in memoryHistory"
-                  :key="index"
-                  class="chart-bar memory"
-                  :style="{ height: `${value}%` }"
-                  :title="`${value.toFixed(1)}%`"
-                ></div>
-              </div>
+              <div class="mini-chart" id="memory-chart"></div>
             </div>
           </div>
         </div>
@@ -775,29 +909,16 @@ html.dark .chart-value {
 }
 
 .mini-chart {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 80px;
-  padding: 0.5rem;
-  background: #f9fafb;
+  height: 120px;
+  width: 100%;
+  background: #fafafa;
   border-radius: 8px;
+  padding: 8px;
+  box-sizing: border-box;
 }
 
 html.dark .mini-chart {
   background: #374151;
-}
-
-.chart-bar {
-  flex: 1;
-  min-width: 8px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 2px;
-  transition: height 0.3s ease;
-}
-
-.chart-bar.memory {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
 }
 
 /* Action Buttons */

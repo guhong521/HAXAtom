@@ -96,6 +96,22 @@ export const deleteModelConfig = (modelId: string) => {
 };
 
 /**
+ * 获取供应商的模型列表
+ * @param provider 供应商名称
+ * @param modelConfigId 可选的模型配置 ID
+ */
+export const getProviderModels = async (
+  provider: string,
+  modelConfigId?: string
+) => {
+  const params = modelConfigId ? { model_config_id: modelConfigId } : {};
+  return http.get<ApiResponse<Array<{ id: string; name: string; owned_by: string }>>>(
+    `/models/providers/${provider}/models`,
+    { params }
+  );
+};
+
+/**
  * 根据标签页类型获取对应的模型类型
  */
 export const getModelTypeByTab = (tab: string): string | undefined => {

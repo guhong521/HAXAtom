@@ -6,6 +6,7 @@ import {
   createModelConfig,
   updateModelConfig,
   deleteModelConfig,
+  getProviderModels,
 } from "../../api/modelConfig";
 import type { ModelConfigListItem } from "../../api/modelConfig";
 
@@ -110,6 +111,20 @@ const formData = ref({
 
 // 是否显示 API Key
 const showApiKey = ref(false);
+
+// 是否显示模型列表弹窗
+const showModelListModal = ref(false);
+const availableModels = ref<
+  Array<{ id: string; name: string; owned_by: string }>
+>([]);
+const fetchingModels = ref(false);
+
+// 是否显示自定义模型弹窗
+const showCustomModelModal = ref(false);
+const customModelData = ref({
+  modelId: "",
+  modelName: "",
+});
 
 // 切换 API Key 显示/隐藏
 const toggleApiKeyVisibility = () => {
@@ -297,6 +312,128 @@ const getDefaultApiBase = (providerId: string) => {
     aliyun_bailian: "https://dashscope.aliyuncs.com/compatible-mode/v1",
   };
   return defaults[providerId] || "";
+};
+
+// 获取模型列表
+const fetchModelList = async () => {
+  if (!selectedProvider.value) {
+    showToast("请先选择提供商", "error");
+    return;
+  }
+
+  fetchingModels.value = true;
+  try {
+    const response = await getProviderModels(
+      selectedProvider.value.url,
+      selectedProvider.value.id,
+    );
+
+    if (response.data) {
+      availableModels.value = response.data;
+      showModelListModal.value = true;
+      showToast(`获取到 ${response.data.length} 个模型`, "success");
+    }
+  } catch (error: any) {
+    console.error("获取模型列表失败:", error);
+    const errorMsg =
+      error.response?.data?.detail || error.message || "获取失败";
+    showToast(`获取模型列表失败：${errorMsg}`, "error");
+  } finally {
+    fetchingModels.value = false;
+  }
+};
+
+// 从列表中选择模型添加
+const selectModelFromList = async (model: { id: string; name: string }) => {
+  if (!selectedProvider.value) return;
+
+  // 检查是否已存在
+  const exists = providers.value.some(
+    (p) => p.modelNames.includes(model.id) || p.modelNames.includes(model.name),
+  );
+
+  if (exists) {
+    showToast(`模型 ${model.name} 已存在`, "error");
+    return;
+  }
+
+  try {
+    const configData = {
+      model_id: `${selectedProvider.value.url}_${model.id}`,
+      model_name: [model.name],
+      model_type: "chat" as const,
+      provider: selectedProvider.value.url,
+      api_base: formData.value.apiBase,
+      api_key: formData.value.apiKey,
+      is_active: true,
+    };
+
+    await createModelConfig(configData);
+    await loadModelConfigs();
+
+    showModelListModal.value = false;
+    showToast(`已添加模型 ${model.name}`, "success");
+  } catch (error: any) {
+    console.error("添加模型失败:", error);
+    showToast(`添加模型失败：${error.message}`, "error");
+  }
+};
+
+// 打开自定义模型弹窗
+const openCustomModelModal = () => {
+  if (!selectedProvider.value) {
+    showToast("请先选择提供商", "error");
+    return;
+  }
+
+  customModelData.value = {
+    modelId: "",
+    modelName: "",
+  };
+  showCustomModelModal.value = true;
+};
+
+// 添加自定义模型
+const addCustomModel = async () => {
+  if (!selectedProvider.value) return;
+
+  if (!customModelData.value.modelId || !customModelData.value.modelName) {
+    showToast("请填写模型 ID 和名称", "error");
+    return;
+  }
+
+  // 检查是否已存在
+  const exists = providers.value.some(
+    (p) =>
+      p.modelNames.includes(customModelData.value.modelId) ||
+      p.modelNames.includes(customModelData.value.modelName),
+  );
+
+  if (exists) {
+    showToast(`模型 ${customModelData.value.modelName} 已存在`, "error");
+    return;
+  }
+
+  try {
+    const configData = {
+      model_id: `${selectedProvider.value.url}_${customModelData.value.modelId}`,
+      model_name: [customModelData.value.modelName],
+      model_type: "chat" as const,
+      provider: selectedProvider.value.url,
+      api_base: formData.value.apiBase,
+      api_key: formData.value.apiKey,
+      is_active: true,
+    };
+
+    await createModelConfig(configData);
+    await loadModelConfigs();
+
+    showCustomModelModal.value = false;
+    showToast(`已添加自定义模型 ${customModelData.value.modelName}`, "success");
+  } catch (error: any) {
+    console.error("添加自定义模型失败:", error);
+    showToast(`添加自定义模型失败：${error.message}`, "error");
+  }
 };
 
 // 保存配置（更新现有配置）
@@ -586,13 +723,16 @@ const deleteProvider = async (providerId: string) => {
                 </div>
               </div>
               <div class="models-actions">
-                <button class="action-btn">
+                <button class="action-btn" @click="fetchModelList">
                   <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                   </svg>
                   <span>{{ $t("provider.getModelList") }}</span>
                 </button>
-                <button class="action-btn primary">
+                <button
+                  class="action-btn primary"
+                  @click="openCustomModelModal"
+                >
                   <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                   </svg>
@@ -692,6 +832,106 @@ const deleteProvider = async (providerId: string) => {
           <button class="confirm-ok" @click="handleConfirm">
             {{ $t("provider.confirmOk") }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 模型列表弹窗 -->
+    <div
+      v-if="showModelListModal"
+      class="modal-overlay"
+      @click.self="showModelListModal = false"
+    >
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>选择模型</h3>
+          <button class="modal-close" @click="showModelListModal = false">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+              />
+            </svg>
+          </button>
+        </div>
+        <div class="modal-content">
+          <div v-if="fetchingModels" class="loading-state">
+            <svg class="loading-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"
+              />
+            </svg>
+            <span>正在获取模型列表...</span>
+          </div>
+          <div v-else-if="availableModels.length === 0" class="empty-state">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+              />
+            </svg>
+            <span>暂无可用模型</span>
+          </div>
+          <div v-else class="model-list">
+            <div
+              v-for="model in availableModels"
+              :key="model.id"
+              class="model-item"
+              @click="selectModelFromList(model)"
+            >
+              <div class="model-item-info">
+                <div class="model-item-name">{{ model.name }}</div>
+                <div class="model-item-id">{{ model.id }}</div>
+              </div>
+              <svg class="add-icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 自定义模型弹窗 -->
+    <div
+      v-if="showCustomModelModal"
+      class="modal-overlay"
+      @click.self="showCustomModelModal = false"
+    >
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3>添加自定义模型</h3>
+          <button class="modal-close" @click="showCustomModelModal = false">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+              />
+            </svg>
+          </button>
+        </div>
+        <div class="modal-content">
+          <div class="form-item">
+            <label>模型 ID</label>
+            <input
+              v-model="customModelData.modelId"
+              type="text"
+              class="form-input"
+              placeholder="例如：gpt-4-turbo"
+            />
+          </div>
+          <div class="form-item">
+            <label>模型名称</label>
+            <input
+              v-model="customModelData.modelName"
+              type="text"
+              class="form-input"
+              placeholder="例如：GPT-4 Turbo"
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-cancel" @click="showCustomModelModal = false">
+            {{ $t("provider.confirmCancel") }}
+          </button>
+          <button class="btn-primary" @click="addCustomModel">添加模型</button>
         </div>
       </div>
     </div>
@@ -1728,5 +1968,193 @@ input:checked + .slider:before {
     opacity: 1;
     transform: scale(1);
   }
+}
+
+/* 弹窗样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-dialog {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  animation: scaleIn 0.2s ease;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.modal-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.modal-content {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.btn-cancel {
+  padding: 8px 20px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cancel:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btn-primary {
+  padding: 8px 20px;
+  background: var(--primary-color);
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+/* 模型列表 */
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.model-item:hover {
+  background: var(--bg-hover);
+  transform: translateX(4px);
+}
+
+.model-item-info {
+  flex: 1;
+}
+
+.model-item-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.model-item-id {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.add-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+/* 表单输入框 */
+.modal-content .form-item {
+  margin-bottom: 16px;
+}
+
+.modal-content .form-item label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.modal-content .form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.modal-content .form-input:focus {
+  border-color: var(--primary-color);
+  background: var(--bg-primary);
 }
 </style>
