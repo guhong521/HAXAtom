@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { t } from "../../../locales";
 
 const $t = computed(() => t);
@@ -30,6 +30,7 @@ const memoryHistory = ref<number[]>([]);
 const loading = ref(false);
 const autoRefresh = ref(5000);
 let refreshTimer: any = null;
+let uptimeTimer: any = null;
 
 // 运行时长格式化
 const formatUptime = (seconds: number) => {
@@ -37,9 +38,9 @@ const formatUptime = (seconds: number) => {
   const hours = Math.floor((seconds % 86400) / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  
+
   if (days > 0) {
-    return `${days}天 ${hours}小时 ${minutes}分钟`;
+    return `${days}天 ${hours}小时 ${minutes}分钟 ${secs}秒`;
   } else if (hours > 0) {
     return `${hours}小时 ${minutes}分钟 ${secs}秒`;
   } else if (minutes > 0) {
@@ -66,11 +67,11 @@ const fetchSystemInfo = async () => {
     if (response.ok) {
       const data = await response.json();
       systemInfo.value = data;
-      
+
       // 更新历史记录
       cpuHistory.value.push(data.cpu_percent || 0);
       memoryHistory.value.push(data.memory_percent || 0);
-      
+
       // 保持最近 20 条记录
       if (cpuHistory.value.length > 20) {
         cpuHistory.value.shift();
@@ -84,12 +85,24 @@ const fetchSystemInfo = async () => {
   }
 };
 
+// 启动运行时长计时器（每秒更新）
+const startUptimeTimer = () => {
+  if (uptimeTimer) {
+    clearInterval(uptimeTimer);
+  }
+  uptimeTimer = setInterval(() => {
+    if (systemInfo.value.uptime) {
+      systemInfo.value.uptime += 1;
+    }
+  }, 1000);
+};
+
 // 自动刷新
 const setupAutoRefresh = () => {
   if (refreshTimer) {
     clearInterval(refreshTimer);
   }
-  
+
   if (autoRefresh.value > 0) {
     refreshTimer = setInterval(fetchSystemInfo, autoRefresh.value);
   }
@@ -99,11 +112,15 @@ const setupAutoRefresh = () => {
 onMounted(() => {
   fetchSystemInfo();
   setupAutoRefresh();
+  startUptimeTimer();
 });
 
 onUnmounted(() => {
   if (refreshTimer) {
     clearInterval(refreshTimer);
+  }
+  if (uptimeTimer) {
+    clearInterval(uptimeTimer);
   }
 });
 </script>
@@ -139,12 +156,17 @@ onUnmounted(() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <rect x="4" y="4" width="16" height="16" rx="2" stroke-width="2" />
             <rect x="9" y="9" width="6" height="6" stroke-width="2" />
-            <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3" stroke-width="2" />
+            <path
+              d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"
+              stroke-width="2"
+            />
           </svg>
         </div>
         <div class="stat-content">
           <div class="stat-label">CPU 使用率</div>
-          <div class="stat-value">{{ (systemInfo.cpu_percent || 0).toFixed(1) }}%</div>
+          <div class="stat-value">
+            {{ (systemInfo.cpu_percent || 0).toFixed(1) }}%
+          </div>
           <div class="stat-detail">{{ systemInfo.cpu_model || "Unknown" }}</div>
         </div>
       </div>
@@ -152,15 +174,21 @@ onUnmounted(() => {
       <div class="stat-card">
         <div class="stat-icon memory-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M6 4h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z" stroke-width="2" />
+            <path
+              d="M6 4h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"
+              stroke-width="2"
+            />
             <path d="M10 4v16M14 4v16M4 10h16M4 14h16" stroke-width="2" />
           </svg>
         </div>
         <div class="stat-content">
           <div class="stat-label">内存使用率</div>
-          <div class="stat-value">{{ (systemInfo.memory_percent || 0).toFixed(1) }}%</div>
+          <div class="stat-value">
+            {{ (systemInfo.memory_percent || 0).toFixed(1) }}%
+          </div>
           <div class="stat-detail">
-            {{ formatBytes(systemInfo.memory_used || 0) }} / {{ formatBytes(systemInfo.memory_total || 0) }}
+            {{ formatBytes(systemInfo.memory_used || 0) }} /
+            {{ formatBytes(systemInfo.memory_total || 0) }}
           </div>
         </div>
       </div>
@@ -174,7 +202,9 @@ onUnmounted(() => {
         </div>
         <div class="stat-content">
           <div class="stat-label">运行时长</div>
-          <div class="stat-value">{{ formatUptime(systemInfo.uptime || 0) }}</div>
+          <div class="stat-value">
+            {{ formatUptime(systemInfo.uptime || 0) }}
+          </div>
           <div class="stat-detail">系统持续运行时间</div>
         </div>
       </div>
@@ -189,9 +219,12 @@ onUnmounted(() => {
         </div>
         <div class="stat-content">
           <div class="stat-label">磁盘使用</div>
-          <div class="stat-value">{{ (systemInfo.disk_percent || 0).toFixed(1) }}%</div>
+          <div class="stat-value">
+            {{ (systemInfo.disk_percent || 0).toFixed(1) }}%
+          </div>
           <div class="stat-detail">
-            {{ formatBytes(systemInfo.disk_used || 0) }} / {{ formatBytes(systemInfo.disk_total || 0) }}
+            {{ formatBytes(systemInfo.disk_used || 0) }} /
+            {{ formatBytes(systemInfo.disk_total || 0) }}
           </div>
         </div>
       </div>
@@ -203,7 +236,12 @@ onUnmounted(() => {
       <div class="info-card">
         <div class="card-header">
           <h2 class="card-title">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <svg
+              class="icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+            >
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -218,7 +256,9 @@ onUnmounted(() => {
           <div class="info-grid">
             <div class="info-item">
               <div class="info-label">操作系统</div>
-              <div class="info-value">{{ systemInfo.platform }} {{ systemInfo.platform_version }}</div>
+              <div class="info-value">
+                {{ systemInfo.platform }} {{ systemInfo.platform_version }}
+              </div>
             </div>
             <div class="info-item">
               <div class="info-label">Python 版本</div>
@@ -234,7 +274,9 @@ onUnmounted(() => {
             </div>
             <div class="info-item">
               <div class="info-label">总内存</div>
-              <div class="info-value">{{ formatBytes(systemInfo.memory_total || 0) }}</div>
+              <div class="info-value">
+                {{ formatBytes(systemInfo.memory_total || 0) }}
+              </div>
             </div>
             <div class="info-item">
               <div class="info-label">HAXAtom 版本</div>
@@ -248,7 +290,12 @@ onUnmounted(() => {
       <div class="info-card">
         <div class="card-header">
           <h2 class="card-title">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <svg
+              class="icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+            >
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -260,7 +307,13 @@ onUnmounted(() => {
           </h2>
           <div class="card-actions">
             <span class="refresh-indicator" :class="{ loading }">
-              <svg v-if="loading" class="spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg
+                v-if="loading"
+                class="spinning"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+              >
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -285,6 +338,13 @@ onUnmounted(() => {
               <div class="chart-label">
                 <span class="chart-color cpu"></span>
                 CPU 使用率
+                <span class="chart-value"
+                  >{{
+                    cpuHistory.length > 0
+                      ? cpuHistory[cpuHistory.length - 1].toFixed(1)
+                      : "0.0"
+                  }}%</span
+                >
               </div>
               <div class="mini-chart">
                 <div
@@ -292,6 +352,7 @@ onUnmounted(() => {
                   :key="index"
                   class="chart-bar"
                   :style="{ height: `${value}%` }"
+                  :title="`${value.toFixed(1)}%`"
                 ></div>
               </div>
             </div>
@@ -299,6 +360,13 @@ onUnmounted(() => {
               <div class="chart-label">
                 <span class="chart-color memory"></span>
                 内存使用率
+                <span class="chart-value"
+                  >{{
+                    memoryHistory.length > 0
+                      ? memoryHistory[memoryHistory.length - 1].toFixed(1)
+                      : "0.0"
+                  }}%</span
+                >
               </div>
               <div class="mini-chart">
                 <div
@@ -306,6 +374,7 @@ onUnmounted(() => {
                   :key="index"
                   class="chart-bar memory"
                   :style="{ height: `${value}%` }"
+                  :title="`${value.toFixed(1)}%`"
                 ></div>
               </div>
             </div>
@@ -317,7 +386,12 @@ onUnmounted(() => {
       <div class="info-card">
         <div class="card-header">
           <h2 class="card-title">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <svg
+              class="icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+            >
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
@@ -667,11 +741,23 @@ html.dark .info-value {
   color: #6b7280;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
+  flex: 1;
 }
 
 html.dark .chart-label {
   color: #9ca3af;
+}
+
+.chart-value {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+html.dark .chart-value {
+  color: #f3f4f6;
 }
 
 .chart-color {
