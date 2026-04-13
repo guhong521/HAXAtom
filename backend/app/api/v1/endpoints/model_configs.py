@@ -34,6 +34,7 @@ PROVIDER_MODEL_ENDPOINTS = {
     "moonshot": "https://api.moonshot.cn/v1/models",
     "anthropic": "https://api.anthropic.com/v1/models",
     "aliyun_bailian": "https://dashscope.aliyuncs.com/compatible-mode/v1/models",
+    "ollama": "http://localhost:11434/api/tags",  # Ollama 本地部署
 }
 
 
@@ -117,7 +118,12 @@ async def fetch_models_from_provider(
     if api_base:
         # 去掉末尾的斜杠
         api_base = api_base.rstrip("/")
-        endpoint = f"{api_base}/models"
+        
+        # Ollama 特殊处理：使用 /api/tags 端点
+        if provider == "ollama":
+            endpoint = f"{api_base}/api/tags"
+        else:
+            endpoint = f"{api_base}/models"
     else:
         endpoint = default_endpoint
     
@@ -129,15 +135,19 @@ async def fetch_models_from_provider(
         "Content-Type": "application/json",
     }
     
+    # Ollama 不需要认证
+    if provider == "ollama":
+        headers = {}
     # Anthropic 使用不同的 header
-    if provider == "anthropic":
+    elif provider == "anthropic":
         headers["x-api-key"] = api_key
         headers["anthropic-version"] = "2023-06-01"
     
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             print(f"请求模型列表：{endpoint}")
-            print(f"Headers: Authorization: Bearer {api_key[:10]}***")
+            if headers:
+                print(f"Headers: Authorization: Bearer {api_key[:10]}***")
             
             response = await client.get(endpoint, headers=headers)
             print(f"响应状态码：{response.status_code}")
@@ -147,7 +157,22 @@ async def fetch_models_from_provider(
             data = response.json()
             
             # 不同供应商的响应格式不同
-            if provider == "zhipu":
+            if provider == "ollama":
+                # Ollama 的响应格式：{"models": [...]}
+                models = data.get("models", [])
+                # 转换为统一格式
+                return [
+                    {
+                        "id": model.get("name", ""),
+                        "name": model.get("name", ""),
+                        "size": model.get("size", 0),
+                        "digest": model.get("digest", ""),
+                        "modified_at": model.get("modified_at", ""),
+                        "details": model.get("details", {}),
+                    }
+                    for model in models
+                ]
+            elif provider == "zhipu":
                 # 智谱的响应格式
                 return data.get("data", [])
             else:
