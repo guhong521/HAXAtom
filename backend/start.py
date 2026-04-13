@@ -38,12 +38,12 @@ def check_venv():
 
 def check_database():
     """检查数据库文件"""
-    db_path = PROJECT_ROOT / "data" / "haxatom.db"
+    db_path = PROJECT_ROOT.parent / "data" / "db" / "haxatom.db"
     if db_path.exists():
-        print(f"[OK] 数据库存在: {db_path}")
+        print(f"[OK] 数据库存在：{db_path}")
         return True
     else:
-        print(f"[!] 数据库不存在: {db_path}")
+        print(f"[!] 数据库不存在：{db_path}")
         print("    将自动初始化数据库")
         return False
 

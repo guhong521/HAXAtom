@@ -55,8 +55,10 @@ const formData = ref<Partial<PresetDetail>>({
 
 // 模型提供商列表
 const modelConfigs = ref<ModelConfigListItem[]>([]);
-// 扁平化的模型列表
-const flatModels = ref<{ model_name: string; provider: string }[]>([]);
+// 扁平化的模型列表（只包含启用的）
+const flatModels = ref<
+  { model_name: string; provider: string; is_active: boolean }[]
+>([]);
 // 提示词配置列表
 const promptConfigs = ref<PromptConfigListItem[]>([]);
 const loading = ref(false);
@@ -75,6 +77,7 @@ const expandedSections = ref<Record<string, boolean>>({
   knowledgeBase: true,
   plugin: true,
   advanced: false,
+  status: false,
 });
 
 // 加载模型提供商列表
@@ -83,14 +86,18 @@ const loadModelConfigs = async () => {
     const response = await getModelConfigs("chat");
     modelConfigs.value = response.data || [];
 
-    // 将所有模型扁平化为一个列表
+    // 将所有模型扁平化为一个列表（只包含启用的）
     flatModels.value = [];
     for (const config of modelConfigs.value) {
-      for (const model_name of config.model_name) {
-        flatModels.value.push({
-          model_name: model_name,
-          provider: config.provider,
-        });
+      if (config.is_active) {
+        // 只添加启用的模型配置
+        for (const model_name of config.model_name) {
+          flatModels.value.push({
+            model_name: model_name,
+            provider: config.provider,
+            is_active: config.is_active,
+          });
+        }
       }
     }
   } catch (err) {
@@ -105,6 +112,27 @@ const loadPromptConfigs = async () => {
     promptConfigs.value = response.data || [];
   } catch (err) {
     console.error("加载提示词配置失败:", err);
+  }
+};
+
+// 提示词切换时立即更新详情
+const onPromptChange = () => {
+  const selectedPromptId = formData.value.selected_prompt;
+  if (selectedPromptId) {
+    const prompt = promptConfigs.value.find(
+      (p) => p.prompt_id === selectedPromptId,
+    );
+    if (prompt) {
+      formData.value.prompt_info = {
+        prompt_id: prompt.prompt_id,
+        prompt_name: prompt.prompt_name,
+        system_prompt: prompt.system_prompt,
+        variables: prompt.variables || [],
+        temperature_override: prompt.temperature_override,
+      };
+    }
+  } else {
+    formData.value.prompt_info = undefined;
   }
 };
 
@@ -403,6 +431,7 @@ watch(
                       v-for="model in flatModels"
                       :key="model.model_name"
                       :value="model.model_name"
+                      :disabled="!model.is_active"
                     >
                       {{ model.provider }} - {{ model.model_name }}
                     </option>
@@ -478,6 +507,7 @@ watch(
                   <select
                     id="selected_prompt"
                     v-model="formData.selected_prompt"
+                    @change="onPromptChange"
                   >
                     <option value="" disabled>
                       {{ $t("bot.preset.selectPrompt") || "请选择提示词" }}
@@ -762,17 +792,27 @@ watch(
             </div>
           </div>
 
-          <!-- 状态配置 -->
-          <div class="section-panel">
-            <div class="section-header">
+          <!-- 状态配置（整合到高级配置中） -->
+          <div class="section-panel" v-if="!presetId">
+            <div class="section-header" @click="toggleSection('status')">
               <div class="section-title-wrapper">
-                <h3 class="section-title">{{ $t("bot.preset.status") }}</h3>
+                <h3 class="section-title">
+                  {{ $t("bot.preset.statusConfig") || "状态配置" }}
+                </h3>
               </div>
               <div class="section-header-actions">
-                <span class="collapse-icon">▶</span>
+                <span
+                  class="collapse-icon"
+                  :class="{ rotated: expandedSections.status }"
+                >
+                  ▶
+                </span>
               </div>
             </div>
-            <div class="section-content expanded">
+            <div
+              class="section-content"
+              :class="{ expanded: expandedSections.status }"
+            >
               <div class="form-row">
                 <div class="form-group checkbox-group">
                   <label class="checkbox-label">
@@ -828,28 +868,57 @@ watch(
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 20px;
+  padding: 24px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .modal-content {
   background: var(--bg-primary);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(99, 102, 241, 0.1);
   width: 100%;
-  max-width: 800px;
+  max-width: 900px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .modal-header {
-  padding: 16px 24px;
+  padding: 20px 24px;
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.05) 0%,
+    rgba(16, 185, 129, 0.05) 100%
+  );
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
@@ -858,113 +927,159 @@ watch(
 }
 
 .modal-title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 700;
   color: var(--text-primary);
   margin: 0;
+  background: linear-gradient(135deg, #6366f1 0%, #10b981 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .modal-close {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: none;
   background: transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   color: var(--text-secondary);
 }
 
 .modal-close:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  transform: rotate(90deg);
 }
 
 .loading-state,
 .error-state {
-  padding: 40px 24px;
+  padding: 60px 24px;
   text-align: center;
   color: var(--text-secondary);
+  font-size: 14px;
 }
 
 .error-state {
   color: #ef4444;
+  background: rgba(239, 68, 68, 0.05);
+  border-radius: 8px;
+  margin: 24px;
 }
 
 .modal-body {
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+  background: var(--bg-primary);
+}
+
+.modal-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-color);
 }
 
 .preset-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .section-panel {
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--bg-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .section-panel:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border-color: var(--primary-color);
+  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+  transform: translateY(-2px);
 }
 
 .section-header {
-  padding: 12px 16px;
-  background: var(--bg-secondary);
+  padding: 16px 20px;
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.08) 0%,
+    rgba(16, 185, 129, 0.08) 100%
+  );
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
 
 .section-header:hover {
-  background: var(--bg-hover);
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.12) 0%,
+    rgba(16, 185, 129, 0.12) 100%
+  );
 }
 
 .section-header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .section-title-wrapper {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .section-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--text-primary);
   margin: 0;
+  letter-spacing: -0.025em;
 }
 
 .section-badge {
-  font-size: 12px;
-  padding: 2px 8px;
-  background: var(--primary-color);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
   color: white;
-  border-radius: 10px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  font-family: "Fira Code", monospace;
+  letter-spacing: 0.5px;
 }
 
 .collapse-icon {
   font-size: 12px;
-  color: var(--text-secondary);
-  transition: transform 0.3s ease;
+  color: #6366f1;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
+  font-weight: 700;
 }
 
 .collapse-icon.rotated {
@@ -976,69 +1091,125 @@ watch(
   max-height: 0;
   overflow: hidden;
   transition:
-    max-height 0.3s ease-out,
+    max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     padding 0.3s ease;
   height: 0;
+  background: var(--bg-primary);
 }
 
 .section-content.expanded {
   max-height: 2000px;
-  padding: 16px;
+  padding: 20px;
   height: auto;
+  border-top: 1px solid transparent;
+  animation: fadeInContent 0.3s ease-out;
+}
+
+@keyframes fadeInContent {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .form-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.form-row:last-child {
+  margin-bottom: 0;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .form-group label {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
+  letter-spacing: -0.025em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-group label::before {
+  content: "";
+  width: 3px;
+  height: 12px;
+  background: linear-gradient(135deg, #6366f1 0%, #10b981 100%);
+  border-radius: 2px;
 }
 
 .form-group input,
 .form-group select,
 .form-group textarea {
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 8px;
   font-size: 14px;
   background: var(--bg-primary);
   color: var(--text-primary);
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: "Fira Code", monospace;
 }
 
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  transform: translateY(-1px);
+}
+
+.form-group input:hover,
+.form-group select:hover,
+.form-group textarea:hover {
+  border-color: rgba(99, 102, 241, 0.5);
 }
 
 .form-group input:disabled {
   background: var(--bg-disabled);
   color: var(--text-disabled);
   cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .form-group textarea {
   resize: vertical;
-  min-height: 80px;
+  min-height: 100px;
+  font-family: "Fira Code", monospace;
+  line-height: 1.6;
 }
 
 .form-error {
   font-size: 12px;
   color: #ef4444;
+  font-weight: 500;
+  padding-left: 6px;
+  animation: shake 0.3s ease-in-out;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
 }
 
 .checkbox-group {
@@ -1054,12 +1225,18 @@ watch(
   cursor: pointer;
   font-size: 14px;
   color: var(--text-primary);
+  transition: color 0.2s;
+}
+
+.checkbox-label:hover {
+  color: #6366f1;
 }
 
 .checkbox-label input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   cursor: pointer;
+  accent-color: #6366f1;
 }
 
 .info-grid {
@@ -1077,21 +1254,29 @@ watch(
 
 .info-item label {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .info-value {
   font-size: 14px;
   color: var(--text-primary);
   word-break: break-all;
+  font-family: "Fira Code", monospace;
 }
 
 .info-value.code {
-  font-family: monospace;
-  background: var(--bg-secondary);
-  padding: 4px 8px;
-  border-radius: 4px;
+  font-family: "Fira Code", monospace;
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.05) 0%,
+    rgba(16, 185, 129, 0.05) 100%
+  );
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(99, 102, 241, 0.1);
 }
 
 .info-value.system-prompt {
@@ -1101,13 +1286,14 @@ watch(
 }
 
 .info-value.json-code {
-  font-family: monospace;
+  font-family: "Fira Code", monospace;
   font-size: 12px;
   background: var(--bg-secondary);
   padding: 12px;
-  border-radius: 6px;
+  border-radius: 8px;
   overflow-x: auto;
   white-space: pre;
+  border: 1px solid var(--border-color);
 }
 
 .info-group {
@@ -1119,7 +1305,7 @@ watch(
 
 .info-group label {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
@@ -1128,17 +1314,21 @@ watch(
   text-align: center;
   color: var(--text-secondary);
   font-style: italic;
+  background: var(--bg-secondary);
+  border-radius: 8px;
 }
 
 .tag {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  padding: 4px 10px;
   margin: 2px;
-  background: var(--primary-color);
+  background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
   color: white;
   border-radius: 12px;
   font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
 }
 
 .knowledge-list,
@@ -1150,10 +1340,22 @@ watch(
 
 .knowledge-item,
 .plugin-item {
-  padding: 12px;
-  background: var(--bg-secondary);
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
+  padding: 14px;
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.03) 0%,
+    rgba(16, 185, 129, 0.03) 100%
+  );
+  border-radius: 8px;
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  transition: all 0.2s;
+}
+
+.knowledge-item:hover,
+.plugin-item:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+  transform: translateX(4px);
 }
 
 .knowledge-header,
@@ -1166,20 +1368,23 @@ watch(
 
 .knowledge-name,
 .plugin-name {
-  font-weight: 500;
+  font-weight: 700;
   color: var(--text-primary);
+  font-size: 14px;
 }
 
 .knowledge-docs,
 .plugin-class {
   font-size: 12px;
   color: var(--text-secondary);
+  font-family: "Fira Code", monospace;
 }
 
 .knowledge-desc {
   font-size: 13px;
   color: var(--text-secondary);
   margin-bottom: 8px;
+  line-height: 1.6;
 }
 
 .knowledge-meta,
@@ -1188,6 +1393,7 @@ watch(
   gap: 16px;
   font-size: 12px;
   color: var(--text-secondary);
+  font-family: "Fira Code", monospace;
 }
 
 .path-label {
@@ -1195,58 +1401,97 @@ watch(
 }
 
 code {
-  font-family: monospace;
-  background: var(--bg-secondary);
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-family: "Fira Code", monospace;
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.05) 0%,
+    rgba(16, 185, 129, 0.05) 100%
+  );
+  padding: 3px 8px;
+  border-radius: 6px;
   font-size: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.1);
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  padding-top: 16px;
+  padding-top: 20px;
   border-top: 1px solid var(--border-color);
+  margin-top: 8px;
 }
 
 .btn {
-  padding: 8px 16px;
-  border-radius: 6px;
+  padding: 10px 20px;
+  border-radius: 8px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   border: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s;
+}
+
+.btn:hover::before {
+  left: 100%;
 }
 
 .btn-secondary {
   background: var(--bg-secondary);
   color: var(--text-primary);
+  border: 1.5px solid var(--border-color);
 }
 
 .btn-secondary:hover {
   background: var(--bg-hover);
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .btn-primary {
-  background: var(--primary-color);
+  background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
   color: white;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+  transform: translateY(-2px);
 }
 
 .btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
+  filter: grayscale(100%);
 }
 
 /* 响应式 */
 @media (max-width: 640px) {
   .modal-overlay {
-    padding: 10px;
+    padding: 12px;
   }
 
   .modal-content {
@@ -1255,11 +1500,11 @@ code {
   }
 
   .modal-header {
-    padding: 12px 16px;
+    padding: 16px;
   }
 
   .modal-title {
-    font-size: 16px;
+    font-size: 18px;
   }
 
   .modal-body {
@@ -1267,7 +1512,7 @@ code {
   }
 
   .section-content {
-    padding: 12px;
+    padding: 16px;
   }
 
   .form-actions {
@@ -1276,6 +1521,7 @@ code {
 
   .btn {
     width: 100%;
+    justify-content: center;
   }
 
   .info-grid {

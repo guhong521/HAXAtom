@@ -25,8 +25,9 @@ from app.db.init_data import init_default_data
 
 def setup_logging():
     """配置日志系统"""
-    # 创建日志目录
-    os.makedirs("data/logs", exist_ok=True)
+    # 创建日志目录（使用配置的 log_file 的父目录）
+    log_dir = os.path.dirname(settings.log_file)
+    os.makedirs(log_dir, exist_ok=True)
     
     # 配置根日志记录器
     logging.basicConfig(
@@ -77,11 +78,14 @@ async def lifespan(app: FastAPI):
     logger.info("[START] Starting HAXAtom...")
     
     try:
-        # 创建数据目录
-        os.makedirs("data/db", exist_ok=True)
-        os.makedirs("data/vectorstore", exist_ok=True)
+        # 创建数据目录（使用配置的绝对路径）
+        db_dir = os.path.dirname(settings.database_url.replace("sqlite+aiosqlite:///", ""))
+        os.makedirs(db_dir, exist_ok=True)
+        
+        os.makedirs(settings.chroma_persist_dir, exist_ok=True)
         os.makedirs("data/uploads", exist_ok=True)
-        os.makedirs("data/logs", exist_ok=True)
+        
+        # 日志目录已在 setup_logging() 中创建
         logger.info("[INIT] Data directories created")
         
         # 初始化数据库

@@ -72,6 +72,7 @@ const providers = ref<
     apiBase?: string;
     apiKey?: string;
     status: "active" | "inactive";
+    disabledModels?: string[]; // 禁用的模型列表
   }[]
 >([]);
 const loading = ref(false);
@@ -85,6 +86,7 @@ const selectedProvider = ref<{
   apiBase?: string;
   apiKey?: string;
   status: "active" | "inactive";
+  disabledModels?: string[];
 } | null>(null);
 
 // 是否显示二级菜单
@@ -147,6 +149,7 @@ const loadModelConfigs = async () => {
         apiBase: item.api_base,
         apiKey: item.api_key,
         status: item.is_active ? "active" : "inactive",
+        disabledModels: item.disabled_models || [],
       }));
     }
   } catch (error) {
@@ -235,7 +238,10 @@ const getProviderIcon = (providerId: string) => {
 
 // 选择提供商
 const selectProvider = (provider: (typeof providers.value)[0]) => {
-  selectedProvider.value = provider;
+  selectedProvider.value = {
+    ...provider,
+    disabledModels: provider.disabledModels || [],
+  };
   // 填充表单数据
   formData.value = {
     id: provider.id,
@@ -358,18 +364,69 @@ const selectModelFromList = async (model: { id: string; name: string }) => {
   }
 
   try {
-    const configData = {
-      model_id: `${selectedProvider.value.url}_${model.id}`,
-      model_name: [model.name],
-      model_type: "chat" as const,
-      provider: selectedProvider.value.url,
-      api_base: formData.value.apiBase,
-      api_key: formData.value.apiKey,
-      is_active: true,
-    };
+    // 获取提供商 ID（从 availableProviders 中查找）
+    const providerInfo = availableProviders.value.find(
+      (p) =>
+        selectedProvider.value?.name.includes(p.name) ||
+        selectedProvider.value?.url === p.id,
+    );
+    const providerId = providerInfo?.id || selectedProvider.value.url;
 
-    await createModelConfig(configData);
-    await loadModelConfigs();
+    // 查找该 provider 是否已有配置（相同 provider 和 api_base）
+    let existingConfig = providers.value.find(
+      (p) => p.url === providerId && p.apiBase === formData.value.apiBase,
+    );
+
+    if (existingConfig) {
+      // 更新现有配置：添加新模型到 modelNames 数组
+      const updatedModelNames = [...existingConfig.modelNames, model.name];
+
+      await updateModelConfig(existingConfig.id, {
+        model_name: updatedModelNames,
+        disabled_models:
+          existingConfig.disabled_models?.filter((m) => m !== model.name) || [],
+      });
+
+      await loadModelConfigs();
+
+      // 选中更新后的配置，新模型默认启用
+      const updatedConfig = providers.value.find(
+        (p) => p.id === existingConfig.id,
+      );
+      if (updatedConfig) {
+        // 确保新模型不在禁用列表中
+        if (updatedConfig.disabledModels) {
+          updatedConfig.disabledModels = updatedConfig.disabledModels.filter(
+            (m) => m !== model.name,
+          );
+        }
+        selectProvider(updatedConfig);
+      }
+    } else {
+      // 创建新配置
+      const configData = {
+        model_id: `${providerId}_${Date.now()}`,
+        model_name: [model.name],
+        model_type: "chat" as const,
+        provider: providerId,
+        api_base: formData.value.apiBase,
+        api_key: formData.value.apiKey,
+        is_active: true,
+        disabled_models: [], // 新配置没有禁用的模型
+      };
+
+      await createModelConfig(configData);
+      await loadModelConfigs();
+
+      // 选中新添加的配置
+      const newModelConfig = providers.value.find((p) =>
+        p.modelNames.includes(model.name),
+      );
+      if (newModelConfig) {
+        newModelConfig.disabledModels = [];
+        selectProvider(newModelConfig);
+      }
+    }
 
     showModelListModal.value = false;
     showToast(`已添加模型 ${model.name}`, "success");
@@ -415,18 +472,79 @@ const addCustomModel = async () => {
   }
 
   try {
-    const configData = {
-      model_id: `${selectedProvider.value.url}_${customModelData.value.modelId}`,
-      model_name: [customModelData.value.modelName],
-      model_type: "chat" as const,
-      provider: selectedProvider.value.url,
-      api_base: formData.value.apiBase,
-      api_key: formData.value.apiKey,
-      is_active: true,
-    };
+    // 获取提供商 ID（从 availableProviders 中查找）
+    const providerInfo = availableProviders.value.find(
+      (p) =>
+        selectedProvider.value?.name.includes(p.name) ||
+        selectedProvider.value?.url === p.id,
+    );
+    const providerId = providerInfo?.id || selectedProvider.value.url;
 
-    await createModelConfig(configData);
-    await loadModelConfigs();
+    // 查找该 provider 是否已有配置（相同 provider 和 api_base）
+    let existingConfig = providers.value.find(
+      (p) => p.url === providerId && p.apiBase === formData.value.apiBase,
+    );
+
+    // 清理 modelId，只保留小写字母、数字和下划线
+    const cleanModelId = customModelData.value.modelId
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, "_");
+
+    if (existingConfig) {
+      // 更新现有配置：添加新模型到 modelNames 数组
+      const updatedModelNames = [
+        ...existingConfig.modelNames,
+        customModelData.value.modelName,
+      ];
+
+      await updateModelConfig(existingConfig.id, {
+        model_name: updatedModelNames,
+        disabled_models:
+          existingConfig.disabled_models?.filter(
+            (m) => m !== customModelData.value.modelName,
+          ) || [],
+      });
+
+      await loadModelConfigs();
+
+      // 选中更新后的配置，新模型默认启用
+      const updatedConfig = providers.value.find(
+        (p) => p.id === existingConfig.id,
+      );
+      if (updatedConfig) {
+        // 确保新模型不在禁用列表中
+        if (updatedConfig.disabledModels) {
+          updatedConfig.disabledModels = updatedConfig.disabledModels.filter(
+            (m) => m !== customModelData.value.modelName,
+          );
+        }
+        selectProvider(updatedConfig);
+      }
+    } else {
+      // 创建新配置
+      const configData = {
+        model_id: `${providerId}_${cleanModelId}`,
+        model_name: [customModelData.value.modelName],
+        model_type: "chat" as const,
+        provider: providerId,
+        api_base: formData.value.apiBase,
+        api_key: formData.value.apiKey,
+        is_active: true,
+        disabled_models: [], // 新配置没有禁用的模型
+      };
+
+      await createModelConfig(configData);
+      await loadModelConfigs();
+
+      // 选中新添加的配置
+      const newModelConfig = providers.value.find((p) =>
+        p.modelNames.includes(customModelData.value.modelName),
+      );
+      if (newModelConfig) {
+        newModelConfig.disabledModels = [];
+        selectProvider(newModelConfig);
+      }
+    }
 
     showCustomModelModal.value = false;
     showToast(`已添加自定义模型 ${customModelData.value.modelName}`, "success");
@@ -449,6 +567,7 @@ const saveConfig = async () => {
       api_base: formData.value.apiBase,
       api_key: formData.value.apiKey,
       is_active: selectedProvider.value.status === "active",
+      disabled_models: selectedProvider.value.disabledModels || [],
     };
 
     await updateModelConfig(selectedProvider.value.id, configData);
@@ -468,6 +587,115 @@ const saveConfig = async () => {
 const cancelConfig = () => {
   showConfigForm.value = false;
   configuringProvider.value = null;
+};
+
+// 删除模型
+const deleteModel = async (index: number) => {
+  if (!selectedProvider.value) return;
+
+  const modelName = selectedProvider.value.modelNames[index];
+
+  showConfirm(`确定要删除模型 ${modelName} 吗？`, async () => {
+    try {
+      const updatedModelNames = selectedProvider.value.modelNames.filter(
+        (_, i) => i !== index,
+      );
+
+      // 同时从 disabledModels 中移除
+      if (selectedProvider.value.disabledModels) {
+        selectedProvider.value.disabledModels =
+          selectedProvider.value.disabledModels.filter((m) => m !== modelName);
+      }
+
+      if (updatedModelNames.length === 0) {
+        // 如果删除后没有模型了，删除整个配置
+        await deleteModelConfig(selectedProvider.value.id);
+        showToast(`已删除模型 ${modelName}`, "success");
+      } else {
+        // 更新配置，移除该模型
+        await updateModelConfig(selectedProvider.value.id, {
+          model_name: updatedModelNames,
+          disabled_models: selectedProvider.value.disabledModels,
+        });
+        showToast(`已删除模型 ${modelName}`, "success");
+      }
+
+      await loadModelConfigs();
+
+      // 如果当前选中的配置被删除了，选中第一个配置
+      if (updatedModelNames.length === 0 && providers.value.length > 0) {
+        selectProvider(providers.value[0]);
+      } else if (updatedModelNames.length > 0) {
+        // 更新当前选中的配置
+        const updatedConfig = providers.value.find(
+          (p) => p.id === selectedProvider.value?.id,
+        );
+        if (updatedConfig) {
+          selectProvider(updatedConfig);
+        }
+      }
+    } catch (error: any) {
+      console.error("删除模型失败:", error);
+      showToast(`删除失败：${error.message}`, "error");
+    }
+  });
+};
+
+// 切换模型状态
+const toggleModelStatus = async (index: number, event: Event) => {
+  if (!selectedProvider.value) return;
+
+  const target = event.target as HTMLInputElement;
+  const isActive = target.checked;
+  const modelName = selectedProvider.value.modelNames[index];
+
+  try {
+    // 更新本地状态
+    if (!selectedProvider.value.disabledModels) {
+      selectedProvider.value.disabledModels = [];
+    }
+
+    if (isActive) {
+      // 启用：从禁用列表中移除
+      selectedProvider.value.disabledModels =
+        selectedProvider.value.disabledModels.filter((m) => m !== modelName);
+    } else {
+      // 禁用：添加到禁用列表
+      if (!selectedProvider.value.disabledModels.includes(modelName)) {
+        selectedProvider.value.disabledModels.push(modelName);
+      }
+    }
+
+    // 同步更新到 providers 列表
+    const providerInList = providers.value.find(
+      (p) => p.id === selectedProvider.value?.id,
+    );
+    if (providerInList) {
+      if (!providerInList.disabledModels) {
+        providerInList.disabledModels = [];
+      }
+      if (isActive) {
+        providerInList.disabledModels = providerInList.disabledModels.filter(
+          (m) => m !== modelName,
+        );
+      } else {
+        if (!providerInList.disabledModels.includes(modelName)) {
+          providerInList.disabledModels.push(modelName);
+        }
+      }
+    }
+
+    console.log(`模型 ${modelName} 状态切换为：${isActive ? "启用" : "禁用"}`);
+    if (isActive) {
+      showToast(`模型 ${modelName} 已启用`, "success");
+    } else {
+      showToast(`模型 ${modelName} 已禁用`, "info");
+    }
+  } catch (error: any) {
+    console.error("切换模型状态失败:", error);
+    target.checked = !isActive; // 恢复状态
+    showToast(`切换失败：${error.message}`, "error");
+  }
 };
 
 // 删除提供商
@@ -725,7 +953,9 @@ const deleteProvider = async (providerId: string) => {
               <div class="models-actions">
                 <button class="action-btn" @click="fetchModelList">
                   <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    <path
+                      d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"
+                    />
                   </svg>
                   <span>{{ $t("provider.getModelList") }}</span>
                 </button>
@@ -743,7 +973,7 @@ const deleteProvider = async (providerId: string) => {
 
             <div class="models-list">
               <div
-                v-for="model in selectedProvider.modelNames"
+                v-for="(model, index) in selectedProvider.modelNames"
                 :key="model"
                 class="model-item"
               >
@@ -755,26 +985,19 @@ const deleteProvider = async (providerId: string) => {
                 </div>
                 <div class="model-actions">
                   <label class="switch">
-                    <input type="checkbox" checked />
+                    <input
+                      type="checkbox"
+                      :checked="
+                        !selectedProvider.disabledModels?.includes(model)
+                      "
+                      @change="toggleModelStatus(index, $event)"
+                    />
                     <span class="slider"></span>
                   </label>
-                  <button class="icon-btn" :title="$t('provider.apiKeyTitle')">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                      <path
-                        d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"
-                      />
-                    </svg>
-                  </button>
-                  <button class="icon-btn" :title="$t('provider.settings')">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                      <path
-                        d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
-                      />
-                    </svg>
-                  </button>
                   <button
                     class="icon-btn delete"
                     :title="$t('provider.delete')"
+                    @click="deleteModel(index)"
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor">
                       <path
@@ -1101,9 +1324,10 @@ const deleteProvider = async (providerId: string) => {
   opacity: 0.9;
 }
 
-.add-icon {
+.add-btn svg {
   width: 16px;
   height: 16px;
+  fill: white;
 }
 
 /* 二级菜单 */
@@ -1632,8 +1856,13 @@ const deleteProvider = async (providerId: string) => {
 }
 
 .action-btn.primary {
-  background: rgb(230, 241, 255);
-  color: rgb(37, 99, 235);
+  background: rgb(236, 245, 255);
+  color: #1a1a1a;
+}
+
+:root.dark .action-btn.primary {
+  color: #ffffff;
+  background: rgb(50, 50, 50);
 }
 
 .action-btn.primary:hover {

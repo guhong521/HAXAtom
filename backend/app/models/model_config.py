@@ -31,6 +31,7 @@ class ModelConfig(Base):
     api_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     default_params: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    disabled_models: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, default=list)
     
     def __repr__(self) -> str:
         return f"<ModelConfig(model_id='{self.model_id}', provider='{self.provider}')>"

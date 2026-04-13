@@ -11,6 +11,7 @@ export interface ModelConfig {
   api_key?: string;
   default_params?: Record<string, unknown>;
   is_active: boolean;
+  disabled_models?: string[];
 }
 
 // 创建模型配置请求
@@ -23,6 +24,7 @@ export interface ModelConfigCreate {
   api_key?: string;
   default_params?: Record<string, unknown>;
   is_active?: boolean;
+  disabled_models?: string[];
 }
 
 // 更新模型配置请求
@@ -32,6 +34,7 @@ export interface ModelConfigUpdate {
   api_key?: string;
   default_params?: Record<string, unknown>;
   is_active?: boolean;
+  disabled_models?: string[];
 }
 
 // 列表项
@@ -44,6 +47,7 @@ export interface ModelConfigListItem {
   api_base?: string;
   api_key?: string;
   is_active: boolean;
+  disabled_models?: string[];
 }
 
 // 后端统一响应结构
@@ -102,13 +106,12 @@ export const deleteModelConfig = (modelId: string) => {
  */
 export const getProviderModels = async (
   provider: string,
-  modelConfigId?: string
+  modelConfigId?: string,
 ) => {
   const params = modelConfigId ? { model_config_id: modelConfigId } : {};
-  return http.get<ApiResponse<Array<{ id: string; name: string; owned_by: string }>>>(
-    `/models/providers/${provider}/models`,
-    { params }
-  );
+  return http.get<
+    ApiResponse<Array<{ id: string; name: string; owned_by: string }>>
+  >(`/models/providers/${provider}/models`, { params });
 };
 
 /**

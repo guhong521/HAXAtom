@@ -23,12 +23,13 @@ class ModelParams(BaseModel):
 class ModelConfigBase(BaseModel):
     """模型配置基础字段"""
     model_id: str = Field(..., min_length=1, max_length=64, pattern=r"^[a-z0-9_]+$")
-    model_name: List[str] = Field(..., min_length=1, description="模型名称列表，支持一个厂商多个模型如['glm-4', 'glm-5']")
+    model_name: List[str] = Field(..., min_length=1, description="模型名称列表，支持一个厂商配置多个模型如['glm-4', 'glm-5']")
     model_type: str = Field(default="chat", pattern=r"^(chat|embedding|tts|stt|rerank)$")
     provider: str = Field(..., pattern=r"^(openai|deepseek|ollama|anthropic|zhipu|moonshot|minimax|azure|gemini)$")
     api_base: Optional[str] = Field(default=None, max_length=256)
     default_params: Optional[Dict[str, Any]] = Field(default_factory=dict)
     is_active: bool = Field(default=True)
+    disabled_models: Optional[List[str]] = Field(default=None, description="禁用的模型名称列表")
 
 
 class ModelConfigCreate(ModelConfigBase):
@@ -43,6 +44,7 @@ class ModelConfigUpdate(BaseModel):
     api_key: Optional[str] = Field(default=None)
     default_params: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
+    disabled_models: Optional[List[str]] = None
 
 
 class ModelConfigInDB(ModelConfigBase, TimestampMixin):
@@ -76,3 +78,4 @@ class ModelConfigList(BaseModel):
     api_base: Optional[str]
     api_key: Optional[str]
     is_active: bool
+    disabled_models: Optional[List[str]] = None
