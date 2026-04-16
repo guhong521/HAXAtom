@@ -71,10 +71,25 @@ def init_database():
         print(f"[X] 数据库初始化失败: {e}")
         return False
 
-def start_server():
+def check_web():
+    """检查前端页面"""
+    web_dir = PROJECT_ROOT / "web"
+    index_file = web_dir / "index.html"
+    if web_dir.exists() and index_file.exists():
+        print(f"[OK] 前端页面存在：{web_dir}")
+        return True
+    else:
+        print(f"[!] 未检测到前端页面")
+        print("    将以 API 模式运行")
+        return False
+
+def start_server(has_web=False):
     """启动服务器"""
     print("\n[*] 启动后端服务...")
-    print("    访问地址: http://127.0.0.1:8000")
+    if has_web:
+        print("    访问地址: http://127.0.0.1:8000")
+    else:
+        print("    API地址: http://127.0.0.1:8000")
     print("    API文档:  http://127.0.0.1:8000/docs")
     print("    按 Ctrl+C 停止服务\n")
     print("-" * 60 + "\n")
@@ -120,8 +135,11 @@ def main():
             print("[X] 启动失败: 数据库初始化错误")
             sys.exit(1)
     
+    # 检查前端页面
+    has_web = check_web()
+    
     # 启动服务
-    start_server()
+    start_server(has_web)
 
 if __name__ == "__main__":
     main()

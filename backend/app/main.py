@@ -237,21 +237,58 @@ async def health_check():
     }
 
 
-# 根路由
+# 静态文件服务（前端构建产物）
+import os
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+WEB_DIR = Path(__file__).parent.parent / "web"
+HAS_WEB = WEB_DIR.exists() and (WEB_DIR / "index.html").exists()
+
+if HAS_WEB:
+    # 挂载静态资源
+    app.mount("/assets", StaticFiles(directory=str(WEB_DIR / "assets")), name="assets")
+
+    # 挂载图片等静态文件
+    for static_file in WEB_DIR.iterdir():
+        if static_file.is_file() and static_file.suffix in [".ico", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"]:
+
+            @app.get(f"/{static_file.name}")
+            async def serve_static(name=static_file.name):
+                return FileResponse(str(WEB_DIR / name))
+    logger.info("[WEB] Frontend static files mounted")
+else:
+    logger.info("[WEB] No frontend detected, running in API-only mode")
+
+
+# 注册API路由
+from app.api.v1 import api_router
+app.include_router(api_router)
+
+
+# SPA 回退路由 - 必须放在 API 路由之后，作为最后的 fallback
+# 只匹配非 API、非静态资源的路径
+if HAS_WEB:
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa_fallback(full_path: str):
+        # 此路由只会在没有其他路由匹配时执行
+        # API 路由已在上方注册，会优先匹配
+        return FileResponse(str(WEB_DIR / "index.html"))
+
+
+# 根路由 - 必须在静态文件配置之后定义
 @app.get("/", tags=["Root"])
 async def root():
     """根路由"""
+    if HAS_WEB:
+        return FileResponse(str(WEB_DIR / "index.html"))
     return {
         "name": settings.app_name,
         "version": settings.app_version,
         "docs": "/docs",
         "health": "/health"
     }
-
-
-# 注册API路由
-from app.api.v1 import api_router
-app.include_router(api_router)
 
 
 if __name__ == "__main__":

@@ -43,27 +43,8 @@ watch(bgOpacity, (newVal) => {
 
 const updateBgOpacity = (opacity: number) => {
   document.documentElement.style.setProperty("--bg-opacity", String(opacity));
-  // 浅色模式下，根据透明度调整文字颜色
-  // 透明度越低（背景越透明），文字需要越亮（白色）才能在背景图片上可见
-  if (!isDarkMode.value) {
-    // opacity 0-0.3: 背景透明，背景图片明显，需要白色文字
-    if (opacity <= 0.3) {
-      document.documentElement.style.setProperty("--text-primary", "#ffffff");
-      document.documentElement.style.setProperty("--text-secondary", "#e0e0e0");
-      document.documentElement.style.setProperty("--text-tertiary", "#c0c0c0");
-    }
-    // opacity 0.3-1: 背景较实，使用黑色文字
-    else {
-      document.documentElement.style.setProperty("--text-primary", "#303133");
-      document.documentElement.style.setProperty("--text-secondary", "#606266");
-      document.documentElement.style.setProperty("--text-tertiary", "#909399");
-    }
-  } else {
-    // 深色模式下恢复默认文字颜色
-    document.documentElement.style.setProperty("--text-primary", "#e0e0e0");
-    document.documentElement.style.setProperty("--text-secondary", "#b0b0b0");
-    document.documentElement.style.setProperty("--text-tertiary", "#808080");
-  }
+  // 不再通过内联样式覆盖文字颜色
+  // 文字颜色由 theme.css 中的 CSS 变量自然控制
 };
 
 // 初始化

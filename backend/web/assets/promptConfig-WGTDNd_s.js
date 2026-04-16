@@ -1,0 +1,1 @@
+import{h as t}from"./request-BGET04Pm.js";const r=async()=>await t.get("/prompts"),p=async s=>await t.get(`/prompts/${s}`),a=async s=>await t.post("/prompts",s),c=async(s,e)=>await t.put(`/prompts/${s}`,e),i=async s=>await t.delete(`/prompts/${s}`);export{p as a,a as c,i as d,r as g,c as u};

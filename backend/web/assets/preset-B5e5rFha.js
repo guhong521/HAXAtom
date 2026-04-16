@@ -1,0 +1,1 @@
+import{h as t}from"./request-BGET04Pm.js";const a=async(e,s)=>{const r={};return t.get("/presets",{params:r})},n=e=>t.get(`/presets/${e}`),o=e=>t.post("/presets",e),c=(e,s)=>t.put(`/presets/${e}`,s),u=e=>t.delete(`/presets/${e}`);export{n as a,o as c,u as d,a as g,c as u};

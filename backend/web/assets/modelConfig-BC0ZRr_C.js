@@ -1,0 +1,1 @@
+import{h as s}from"./request-BGET04Pm.js";const n=async e=>{const o=e?{model_type:e}:{};return s.get("/models",{params:o})},d=e=>s.post("/models",e),a=(e,o)=>s.put(`/models/${e}`,o),l=e=>s.delete(`/models/${e}`),c=async(e,o)=>{const t=o?{model_config_id:o}:{};return s.get(`/models/providers/${e}/models`,{params:t})};export{c as a,d as c,l as d,n as g,a as u};
