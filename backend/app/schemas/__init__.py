@@ -68,6 +68,13 @@ from app.schemas.prompt_config import (
     PromptConfigList,
     PromptConfigUpdate,
 )
+from app.schemas.export import (
+    ImportRequest,
+    ImportResult,
+    ImportReport,
+    ExportResponse,
+    BatchImportRequest,
+)
 
 __all__ = [
     # Common
@@ -128,4 +135,10 @@ __all__ = [
     "ConversationCreate",
     "ConversationUpdate",
     "FeedbackRequest",
+    # Export/Import
+    "ImportRequest",
+    "ImportResult",
+    "ImportReport",
+    "ExportResponse",
+    "BatchImportRequest",
 ]

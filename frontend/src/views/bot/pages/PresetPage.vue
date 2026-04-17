@@ -7,6 +7,7 @@ import {
   type PresetListItem,
 } from "../../../api/preset";
 import PresetEditorModal from "../../../components/preset/PresetEditorModal.vue";
+import ImportExportDialog from "../../../components/ImportExportDialog.vue";
 
 const $t = computed(() => t);
 
@@ -17,6 +18,11 @@ const searchKeyword = ref("");
 // 编辑弹窗状态
 const showEditorModal = ref(false);
 const editingPresetId = ref<string | undefined>(undefined);
+
+// 导入导出弹窗状态
+const showImportExportDialog = ref(false);
+const importExportMode = ref<"import" | "export">("export");
+const selectedPresetForExport = ref<string | undefined>(undefined);
 
 // 加载预设方案列表
 const loadPresets = async () => {
@@ -60,6 +66,25 @@ const handleEditorSuccess = () => {
   loadPresets();
 };
 
+// 打开导出弹窗
+const handleExport = (presetId: string) => {
+  selectedPresetForExport.value = presetId;
+  importExportMode.value = "export";
+  showImportExportDialog.value = true;
+};
+
+// 打开导入弹窗
+const handleImport = () => {
+  selectedPresetForExport.value = undefined;
+  importExportMode.value = "import";
+  showImportExportDialog.value = true;
+};
+
+// 导入导出成功后刷新列表
+const handleImportExportSuccess = () => {
+  loadPresets();
+};
+
 // 过滤后的预设方案列表
 const filteredPresets = computed(() => {
   if (!searchKeyword.value) return presets.value;
@@ -100,12 +125,20 @@ onMounted(() => {
             placeholder="搜索预设方案..."
           />
         </div>
-        <button class="btn btn-primary" @click="openEditor">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-          </svg>
-          {{ $t("bot.preset.create") || "创建预设方案" }}
-        </button>
+        <div class="toolbar-actions">
+          <button class="btn btn-secondary" @click="handleImport">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" />
+            </svg>
+            {{ "导入" }}
+          </button>
+          <button class="btn btn-primary" @click="openEditor">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+            </svg>
+            {{ $t("bot.preset.create") || "创建预设方案" }}
+          </button>
+        </div>
       </div>
 
       <!-- 加载状态 -->
@@ -191,6 +224,17 @@ onMounted(() => {
 
           <div class="card-footer">
             <span class="card-id">ID: {{ preset.preset_id }}</span>
+            <button
+              class="card-export-btn"
+              @click.stop="handleExport(preset.preset_id)"
+              title="导出"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2v9.67z"
+                />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -204,6 +248,15 @@ onMounted(() => {
     :is-open="showEditorModal"
     @close="closeEditorModal"
     @success="handleEditorSuccess"
+  />
+
+  <!-- 导入导出弹窗 -->
+  <ImportExportDialog
+    v-model:visible="showImportExportDialog"
+    :mode="importExportMode"
+    resource-type="preset"
+    :resource-id="selectedPresetForExport"
+    @success="handleImportExportSuccess"
   />
 </template>
 
@@ -481,5 +534,47 @@ html.dark .btn-primary:hover {
   font-size: 11px;
   color: var(--text-tertiary);
   font-family: monospace;
+}
+
+.card-export-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.card-export-btn:hover {
+  background: var(--bg-hover);
+  color: var(--primary-color);
+}
+
+.card-export-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.btn-secondary {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
 }
 </style>

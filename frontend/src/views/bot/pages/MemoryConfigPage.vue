@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { t } from "../../../locales";
+import ImportExportDialog from "../../../components/ImportExportDialog.vue";
 
 const $t = computed(() => t);
 
@@ -10,6 +11,11 @@ const memoryConfig = ref({
   max_history: 10,
   summary_enabled: false,
 });
+
+// 导入导出弹窗状态
+const showImportExportDialog = ref(false);
+const importExportMode = ref<"import" | "export">("import");
+const selectedMemoryForExport = ref<string | undefined>(undefined);
 
 const loadMemoryConfig = async () => {
   loading.value = true;
@@ -31,6 +37,18 @@ const saveMemoryConfig = async () => {
   } catch (error) {
     console.error("保存记忆配置失败:", error);
   }
+};
+
+// 打开导入弹窗
+const handleImport = () => {
+  selectedMemoryForExport.value = undefined;
+  importExportMode.value = "import";
+  showImportExportDialog.value = true;
+};
+
+// 导入导出成功后刷新
+const handleImportExportSuccess = () => {
+  loadMemoryConfig();
 };
 
 onMounted(() => {
@@ -88,12 +106,27 @@ onMounted(() => {
         </div>
 
         <div class="form-actions">
+          <button class="btn btn-secondary" @click="handleImport">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" />
+            </svg>
+            导入配置
+          </button>
           <button class="btn btn-primary" @click="saveMemoryConfig">
             保存配置
           </button>
         </div>
       </div>
     </div>
+
+    <!-- 导入导出弹窗 -->
+    <ImportExportDialog
+      v-model:visible="showImportExportDialog"
+      :mode="importExportMode"
+      resource-type="memory"
+      :resource-id="selectedMemoryForExport"
+      @success="handleImportExportSuccess"
+    />
   </div>
 </template>
 
@@ -204,5 +237,15 @@ onMounted(() => {
 
 .btn-primary:hover {
   opacity: 0.9;
+}
+
+.btn-secondary {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-tertiary);
 }
 </style>

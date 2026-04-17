@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { t } from "../../../locales";
 import CreatePersonalityModal from "../../../components/personality/CreatePersonalityModal.vue";
+import ImportExportDialog from "../../../components/ImportExportDialog.vue";
 import {
   getPromptConfigList,
   getPromptConfigDetail,
@@ -15,6 +16,11 @@ import {
 } from "../../../api/promptConfig";
 
 const $t = computed(() => t);
+
+// 导入导出弹窗状态
+const showImportExportDialog = ref(false);
+const importExportMode = ref<"import" | "export">("export");
+const selectedPromptForExport = ref<string | undefined>(undefined);
 
 // 格式化日期
 const formatDate = (dateStr?: string) => {
@@ -173,6 +179,25 @@ const createPersonality = () => {
 const createFolder = () => {
   console.log("新建文件夹");
 };
+
+// 打开导出弹窗
+const handleExport = (promptId: string) => {
+  selectedPromptForExport.value = promptId;
+  importExportMode.value = "export";
+  showImportExportDialog.value = true;
+};
+
+// 打开导入弹窗
+const handleImport = () => {
+  selectedPromptForExport.value = undefined;
+  importExportMode.value = "import";
+  showImportExportDialog.value = true;
+};
+
+// 导入导出成功后刷新列表
+const handleImportExportSuccess = () => {
+  loadPromptConfigs();
+};
 </script>
 
 <template>
@@ -274,6 +299,12 @@ const createFolder = () => {
             >
           </div>
           <div class="toolbar-actions">
+            <button class="btn btn-secondary" @click="handleImport">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" />
+              </svg>
+              {{ "导入" }}
+            </button>
             <button class="btn btn-primary" @click="createPersonality">
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
@@ -340,6 +371,17 @@ const createFolder = () => {
                     </svg>
                     <span>编辑</span>
                   </div>
+                  <div
+                    class="menu-item"
+                    @click="handleExport(personality.prompt_id)"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                      <path
+                        d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2v9.67z"
+                      />
+                    </svg>
+                    <span>导出</span>
+                  </div>
                   <div class="menu-item" @click="handleMove(personality)">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                       <path
@@ -388,6 +430,15 @@ const createFolder = () => {
       :edit-data="editingData"
       @submit="handleCreatePersonality"
       @update="handleUpdatePersonality"
+    />
+
+    <!-- 导入导出弹窗 -->
+    <ImportExportDialog
+      v-model:visible="showImportExportDialog"
+      :mode="importExportMode"
+      resource-type="prompt"
+      :resource-id="selectedPromptForExport"
+      @success="handleImportExportSuccess"
     />
   </div>
 </template>

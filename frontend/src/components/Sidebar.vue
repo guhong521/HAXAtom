@@ -396,6 +396,7 @@ const bottomItems = [
         v-for="(item, index) in bottomItems"
         :key="index"
         class="bottom-item"
+        :class="{ active: item.routeName && isActive(item.routeName) }"
         @click="
           item.url
             ? openExternalUrl(item.url)
@@ -603,6 +604,15 @@ html.dark .sidebar {
 
 .bottom-item:hover {
   background: var(--bg-hover, #f3f4f6);
+}
+
+.bottom-item.active {
+  background: var(--primary-light, #e0e7ff);
+  color: var(--primary-color, #4f46e5);
+}
+
+.bottom-item.active:hover {
+  background: var(--primary-light, #e0e7ff);
 }
 
 .bottom-icon {

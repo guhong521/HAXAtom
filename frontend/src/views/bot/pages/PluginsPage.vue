@@ -2,11 +2,17 @@
 import { ref, computed, onMounted } from "vue";
 import { t } from "../../../locales";
 import { pluginApi } from "../../../api/plugin";
+import ImportExportDialog from "../../../components/ImportExportDialog.vue";
 
 const $t = computed(() => t);
 
 const loading = ref(false);
 const plugins = ref<any[]>([]);
+
+// 导入导出弹窗状态
+const showImportExportDialog = ref(false);
+const importExportMode = ref<"import" | "export">("import");
+const selectedPluginForExport = ref<string | undefined>(undefined);
 
 const pluginsBySource = computed(() => {
   const groups: Record<string, Plugin[]> = {
@@ -78,6 +84,18 @@ const getPluginIcon = (plugin: Plugin): string => {
   }
 };
 
+// 打开导入弹窗
+const handleImport = () => {
+  selectedPluginForExport.value = undefined;
+  importExportMode.value = "import";
+  showImportExportDialog.value = true;
+};
+
+// 导入导出成功后刷新列表
+const handleImportExportSuccess = () => {
+  loadPlugins();
+};
+
 onMounted(() => {
   loadPlugins();
 });
@@ -88,6 +106,14 @@ onMounted(() => {
     <div class="page-header">
       <h1>{{ $t("bot.plugins.title") || "插件管理" }}</h1>
       <p>{{ $t("bot.plugins.subtitle") || "管理 HAXAtom 插件资源" }}</p>
+      <div class="header-actions">
+        <button class="btn btn-secondary" @click="handleImport">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z" />
+          </svg>
+          {{ "导入插件" }}
+        </button>
+      </div>
     </div>
 
     <div class="page-content">
@@ -265,6 +291,15 @@ onMounted(() => {
         </div>
       </template>
     </div>
+
+    <!-- 导入导出弹窗 -->
+    <ImportExportDialog
+      v-model:visible="showImportExportDialog"
+      :mode="importExportMode"
+      resource-type="plugin"
+      :resource-id="selectedPluginForExport"
+      @success="handleImportExportSuccess"
+    />
   </div>
 </template>
 
@@ -292,6 +327,38 @@ onMounted(() => {
   font-size: 14px;
   color: var(--text-secondary);
   margin: 0;
+}
+
+.header-actions {
+  margin-top: 12px;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.btn-secondary {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-tertiary);
 }
 
 .page-content {
